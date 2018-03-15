@@ -34,7 +34,24 @@ void main_thread_ipc_handler(struct ev_loop *loop, ev_zsock_t *wz, int revents) 
 }
  
 void foo_thread_ipc_handler(struct ev_loop *loop, ev_zsock_t *wz, int revents) {
+    void *socket;
+    socket = wz->zsock;
+    int rc;
+    char buffer[1024] = {0};
+    int size;
+  
+    rc = pez_ipc_msg_recv(socket, buffer, 1024, &size);
+    if (rc != EOK) {
+        printf("%s: foo thread failed to recv message\n", __func__);
+    }
  
+    int i;
+    for (i = 0; i < size; i ++) {
+        printf("%x %c", buffer[i], buffer[i]);
+    }
+    printf("\n%s: size %d\n", __func__, size);
+ 
+
  
  
 }
@@ -43,11 +60,10 @@ void main_timeout_cb (struct ev_loop *loop, ev_timer *w, int revents) {
     int rc;
     char buffer[1024] = {1, 2, 3, 4};
  
-    rc = pez_ipc_msg_send (PEZ_THREAD_MAIN, PEZ_THREAD_MAIN, "FOOBAR", 6);
+    rc = pez_ipc_msg_send (PEZ_THREAD_FOO, PEZ_THREAD_MAIN, "FOOBAR", 6);
     if (rc != EOK) {
         printf("%s: main thread failed to send message\n", __func__);
     }
-    printf("main thread timeout\n");
  
 }
  

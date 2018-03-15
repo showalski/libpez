@@ -25,6 +25,12 @@ typedef struct {
 static pez_t pez;
  
  
+/*
+ * Get zmq context.
+ * One zmq context is enough and a must:
+ *      1. You should create and use exactly one context in your process.
+ *      2. One zmq context allows per gigabyte of data in or out per second.
+ */
 static void *
 pez_ipc_get_zmq_ctx() {
     pthread_mutex_lock(&pez.lock);
@@ -34,6 +40,19 @@ pez_ipc_get_zmq_ctx() {
     }
     pthread_mutex_unlock(&pez.lock);
     return pez.zmq_ctx;
+}
+
+/*
+ * Set linux thread id.
+ * Do id and pid map here because:
+ *      1. ZMQ_DEALER is not thread safe. With this map we can check whether
+ *         the source ID is corrent when sending messages.
+ *      2. If pid isn't exist routher thread can discard messages for this pid.
+ */
+static pez_status
+pez_ipc_set_pid(int id)
+{
+
 }
  
 /*
@@ -45,6 +64,12 @@ pez_ipc_msg_send (int trgt, int src, void *buf, int size) {
     pez_status rtn;
  
     if(!buf) {
+        return EINVAL;
+    }
+
+    if ( (pez.pez_ev_zsock[src].pid != pthread_self()) || 
+         (pez.pez_ev_zsock[trgt].pid == 0) ) {
+        printf("target thread isn't exist or src is incorren\n");
         return EINVAL;
     }
  
@@ -101,7 +126,7 @@ pez_ipc_msg_recv(void *socket, void *buf, int buffer_size, int *rtn_size) {
  * Do zmq socket creation and connect.
  */
 pez_status
-pez_ipc_thread_init(struct ev_loop *loop, int thread_id, ev_zsock_cbfn cb) {
+pez_ipc_thread_init(struct ev_loop *loop, int id, ev_zsock_cbfn cb) {
     void * socket;
     int rc;
     void *zmq_ctx;
@@ -112,8 +137,15 @@ pez_ipc_thread_init(struct ev_loop *loop, int thread_id, ev_zsock_cbfn cb) {
         printf("NULL zmq_ctx or cb func recvd\n");
         return EINVAL;
     }
+
+    if (pez.pez_ev_zsock[id].pid != 0) {
+        printf("this id was used alread\n");
+        return EINVAL;
+    } else {
+        pez.pez_ev_zsock[id].pid = pthread_self();
+    }
  
-    /* created socket will be stored to pez_ev_zsock[thread_id] */
+    /* created socket will be stored to pez_ev_zsock[id] */
     socket = zmq_socket(zmq_ctx, ZMQ_DEALER);
     if (socket == NULL) {
         printf("unable to create ZMQ_DEALER socket: %s\n", strerror(errno));
@@ -123,11 +155,11 @@ pez_ipc_thread_init(struct ev_loop *loop, int thread_id, ev_zsock_cbfn cb) {
     /* set zmq id */
     rc = zmq_setsockopt (socket,
                          ZMQ_IDENTITY,
-                         &thread_id,
+                         &id,
                          sizeof(int));
     if (rc == -1) {
         printf("unable to set ZMQ ID for thread %d:%s\n",
-                    thread_id,
+                    id,
                     strerror(errno));
         return errno;
     }
@@ -136,17 +168,22 @@ pez_ipc_thread_init(struct ev_loop *loop, int thread_id, ev_zsock_cbfn cb) {
     rc = zmq_connect(socket, INPROC_ADDRESS);
     if (rc == -1) {
         printf("unable to connect router for thread %d:%s\n",
-                    thread_id,
+                    id,
                     strerror(errno));
         return errno;
     }
  
     /* Only need EV_READ event to read incoming msg */
-    ev_zsock_init(&pez.pez_ev_zsock[thread_id], cb, socket, EV_READ);
-    ev_zsock_start(loop, &pez.pez_ev_zsock[thread_id]);
+    ev_zsock_init(&pez.pez_ev_zsock[id], cb, socket, EV_READ);
+    ev_zsock_start(loop, &pez.pez_ev_zsock[id]);
  
     return EOK;
 }
+
+static pez_status
+pez_ipc_router_thread_recv_msg() {
+}
+
  
 /*
  * router thread
@@ -174,29 +211,7 @@ static void * pez_ipc_router_thread(void *arg) {
     while (1) {
         more = 1;
         zmq_poll(items, sizeof(items)/sizeof(zmq_pollitem_t), -1);
-        //printf("*************ROUTER THREAD MSG RECVD************\n");
         if (items[0].revents & ZMQ_POLLIN) {
-            /*
-            while(more) {
-                memset(buffer, 0, INPROC_MAX_MSG_SIZE);
-                rc = zmq_recv(socket_router, buffer, INPROC_MAX_MSG_SIZE, 0);
-                if (rc == -1) {
-                    printf("router thread recvd err:%s\n", strerror(errno));
-                    break;
-                }
-                printf("RECVD DATA:");
-                for (i = 0; i < rc; i ++) {
-                    printf("%x,", buffer[i]);
-                }
-                printf("\n");
-                rc = zmq_getsockopt(socket_router, ZMQ_RCVMORE, &more, &more_size);
-                if (rc == -1) {
-                    printf("router thread getsocket err:%s\n", strerror(errno));
-                    break;
-                }
-            }
-            */
- 
             /*
              * Recv msg
              */

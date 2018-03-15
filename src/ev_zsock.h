@@ -14,11 +14,12 @@ typedef void (*ev_zsock_cbfn)(struct ev_loop *loop, ev_zsock_t *wz, int revents)
 
 struct ev_zsock_t
 {
-        void *data;             // rw
+        void            *data;    // rw
 
-        ev_zsock_cbfn cb;       // read-only
-        void *zsock;            // read-only
-        int events;             // read-only
+        ev_zsock_cbfn   cb;       // read-only
+        void            *zsock;   // read-only
+        int             events;   // read-only
+        pthread_t       pid;
 
         // private
         ev_prepare w_prepare;

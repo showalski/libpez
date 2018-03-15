@@ -28,3 +28,4 @@ all: clean  main
 clean:
 	rm -rf $(ODIR)
 	rm -rf $(BUILD)
+	rm -f src/msg.pb-c.*
