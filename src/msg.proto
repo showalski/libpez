@@ -5,26 +5,35 @@
 *   Other fields
 * }
 */
- 
+
 syntax = "proto2";
- 
+
 message Msg1 {
   required int32 subtype = 1;
   required int32 value = 2;
   optional int32 foo = 3;
 }
- 
+
 message Msg2 {
   required int32 subtype = 1;
   required string str=2;
   optional string substr=3;
 }
- 
-message WrapperMessage {
+
+message heartBeat {
+  required int32 subtype = 1;
+  optional string substr = 2;
+}
+
+enum msgtype {
+  HEARTBEAT = 0;
+}
+
+message Msg {
   required int32 type = 1;
   required string src = 2;
   required string trgt = 3;
-// Need to add slot number
   optional Msg1 msg1 = 4;
   optional Msg2 msg2 = 5;
+  optional heartBeat hb = 6;
 }

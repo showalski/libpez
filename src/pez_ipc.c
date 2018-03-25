@@ -4,11 +4,9 @@
 #include <stdio.h>
 #include <zmq.h>
 #include <pthread.h>
-#include "msg.pb-c.h"
-#include "pez_common.h"
 #include "pez_ipc.h"
 #include "ev_zsock.h"
-#include <hds_log.h>
+#include <assert.h>
 #ifdef __APPLE__
 #include <mach/error.h>
 #else
@@ -53,7 +51,7 @@ pez_ipc_get_zmq_ctx() {
 static pez_status
 pez_ipc_set_pid(int id)
 {
-
+    return EOK;
 }
 
 /*
@@ -61,7 +59,7 @@ pez_ipc_set_pid(int id)
  * TODO: Broadcasting message should be added.
  */
 pez_status
-pez_ipc_msg_send (int trgt, int src, void *buf, int size) {
+pez_ipc_msg_send (int trgt, int src, void *buf, size_t size) {
     pez_status rtn;
 
     if(!buf) {
@@ -79,7 +77,7 @@ pez_ipc_msg_send (int trgt, int src, void *buf, int size) {
                    &trgt,
                    sizeof(trgt),
                    ZMQ_SNDMORE);
-    printf("%s:id frame size:%d\n", __func__, rtn);
+    //printf("%s:id frame size:%d\n", __func__, rtn);
     if (rtn == -1) {
         printf("%s: send trgt id frame failed: %s\n", __func__, strerror(errno));
         return rtn;
@@ -102,7 +100,7 @@ pez_ipc_msg_send (int trgt, int src, void *buf, int size) {
  * recv message
  */
 pez_status
-pez_ipc_msg_recv(void *socket, void *buf, int buffer_size, int *rtn_size) {
+pez_ipc_msg_recv(void *socket, void *buf, size_t buffer_size, size_t *rtn_size) {
     int rc;
 
     if (!socket || !buf || !rtn_size || (buffer_size == 0)) {
@@ -240,6 +238,7 @@ pez_ipc_thread_init_rx(struct ev_loop *loop, int id, ev_zsock_cbfn cb) {
 
 static pez_status
 pez_ipc_router_thread_recv_msg() {
+    return EOK;
 }
 
 
@@ -311,7 +310,6 @@ static void * pez_ipc_router_thread(void *arg) {
                 printf("%s: send data frame failed: %s\n", __func__, strerror(errno));
                 continue;
             }
-
         }
     }
 }
@@ -333,7 +331,8 @@ pez_ipc_create_router_thread() {
 }
 
 /*
- *
+ * Do internal initialization and thread creation.
+ * router thread takes charge of messages routing.
  */
 void
 pez_ipc_init() {
