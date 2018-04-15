@@ -2,7 +2,7 @@ IDIR = ./include/
 ODIR=./obj
 CC=gcc
 CFLAGS=`pkg-config --cflags 'libprotobuf-c >= 1.0.0'` -I$(ODIR)/
-LDFLAGS= `pkg-config --libs 'libprotobuf-c >= 1.0.0'` -lev -lzmq -lpthread
+LDFLAGS= `pkg-config --libs 'libprotobuf-c >= 1.0.0'` -lzmq -lev -lpthread
 BUILD=build/
  
 obj/%.o: src/%.c

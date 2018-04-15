@@ -14,16 +14,15 @@
  * send heart beat message
  */
 static status
-send_heart_beat_message(MAIN_THREAD_TYPE trgt, MAIN_THREAD_TYPE src, char *str) {
+send_heart_beat_message(const char *trgt, const char *src, char *str) {
     Msg msg = MSG__INIT;
     HeartBeat hb_msg = HEART_BEAT__INIT;
     size_t len;
     void *buf = NULL;
     status rc = EOK;
 
-    if (src > MAIN_THREAD_MAX || trgt > MAIN_THREAD_MAX) {
-        printf("%s: invalid src(%d) or trgt(%d)\n",
-                __func__, src, trgt);
+    if (!src || !trgt) {
+        printf("%s: invalid src or trgt\n", __func__);
         rc = EINVAL;
         goto end;
     }
@@ -34,8 +33,8 @@ send_heart_beat_message(MAIN_THREAD_TYPE trgt, MAIN_THREAD_TYPE src, char *str) 
     hb_msg.substr = str;
     msg.type = MSGTYPE__HEARTBEAT;
     msg.hb = &hb_msg;
-    msg.src = thread_str[src];
-    msg.trgt = thread_str[trgt];
+    msg.src = (char *)src;
+    msg.trgt = (char *)trgt;
 
     len = msg__get_packed_size(&msg);
     buf = malloc(len);
@@ -50,8 +49,8 @@ send_heart_beat_message(MAIN_THREAD_TYPE trgt, MAIN_THREAD_TYPE src, char *str) 
     if (rc != EOK) {
         printf("%s: failed to send hb from %s to %s\n",
                 __func__,
-                thread_str[src],
-                thread_str[trgt]);
+                src,
+                trgt);
         goto end;
     }
 
@@ -156,21 +155,27 @@ main_timeout_cb (struct ev_loop *loop, ev_timer *w, int revents) {
     int rc;
     char buffer[MSG_BUF_SIZE] = {1, 2, 3, 4};
 
-    /*
-    rc = pez_ipc_msg_send (MAIN_THREAD_FOO, PEZ_THREAD_MAIN, "FOOBAR", 6);
+    rc = send_heart_beat_message("foo",
+                                 "main",
+                                 "this is main");
     if (rc != EOK) {
-        printf("%s: main thread failed to send message\n", __func__);
+        printf("%s: foo failed to send hb msg\n", __func__);
     }
-    */
 
+    rc = send_heart_beat_message("bar",
+                                 "main",
+                                 "this is main");
+    if (rc != EOK) {
+        printf("%s: foo failed to send hb msg\n", __func__);
+    }
 }
 
 static void
 foo_thread_timeout_cb (struct ev_loop *loop, ev_timer *w, int revents) {
     status rc;
 
-    rc = send_heart_beat_message(MAIN_THREAD_MAIN,
-                                 MAIN_THREAD_FOO,
+    rc = send_heart_beat_message("main",
+                                 "foo",
                                  "this is foo");
     if (rc != EOK) {
         printf("%s: foo failed to send hb msg\n", __func__);
@@ -181,8 +186,8 @@ static void
 bar_thread_timeout_cb (struct ev_loop *loop, ev_timer *w, int revents) {
     status rc;
 
-    rc = send_heart_beat_message(MAIN_THREAD_MAIN,
-                                 MAIN_THREAD_BAR,
+    rc = send_heart_beat_message("main",
+                                 "bar",
                                  "this is bar");
     if (rc != EOK) {
         printf("%s: foo failed to send hb msg\n", __func__);
@@ -199,7 +204,7 @@ void * pez_foo_thread (void *arg) {
     struct ev_loop *loop = ev_loop_new (0);
     assert (loop != NULL);
 
-    rc = pez_ipc_thread_init_rx(loop, MAIN_THREAD_FOO, foo_thread_ipc_handler);
+    rc = pez_ipc_thread_init_rx(loop, "foo", foo_thread_ipc_handler);
     if (rc != EOK) {
         printf("foo thread failed to init ipc\n");
         return NULL;
@@ -225,7 +230,7 @@ void * pez_bar_thread (void *arg) {
     struct ev_loop *loop = ev_loop_new (0);
     assert (loop != NULL);
 
-    rc = pez_ipc_thread_init_rx(loop, MAIN_THREAD_BAR, bar_thread_ipc_handler);
+    rc = pez_ipc_thread_init_rx(loop, "bar", bar_thread_ipc_handler);
     if (rc != EOK) {
         printf("bar thread failed to init ipc\n");
         return NULL;
@@ -256,7 +261,7 @@ int main() {
 
     pez_ipc_init();
 
-    rtn = pez_ipc_thread_init_rx(loop, MAIN_THREAD_MAIN, main_thread_ipc_handler);
+    rtn = pez_ipc_thread_init_rx(loop, "main", main_thread_ipc_handler);
     if (rtn != EOK) {
         printf("main thread failed to init ipc\n");
         return -1;
