@@ -195,8 +195,8 @@ bar_thread_timeout_cb (struct ev_loop *loop, ev_timer *w, int revents) {
 }
 
 /*
-* foo thread
-*/
+ * foo thread
+ */
 void * pez_foo_thread (void *arg) {
     int rc;
     ev_timer timeout_watcher;

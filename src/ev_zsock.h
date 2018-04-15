@@ -19,7 +19,6 @@ struct ev_zsock_t
         ev_zsock_cbfn   cb;       // read-only
         void            *zsock;   // read-only
         int             events;   // read-only
-        pthread_t       pid;
 
         // private
         ev_prepare w_prepare;

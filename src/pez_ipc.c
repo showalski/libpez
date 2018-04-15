@@ -18,12 +18,19 @@
 #define PEZ_SOCK_ID_INVAL       (-1)
 
 typedef struct {
+    pthread_t           pid;
+    struct ev_zsock_t   pez_ev_zsock;
+    char                identity[PEZ_SOCK_ID_MAX_LEN];
+    uint64_t            recv_cnt;
+    uint64_t            send_cnt;
+} pez_thd_t;
+
+typedef struct {
     void                *zmq_ctx;
     pthread_t           tid_router;
     unsigned int        thread_num;
     pthread_mutex_t     lock;
-    struct ev_zsock_t   pez_ev_zsock[PEZ_SOCK_MAX_NUM];
-    char                id2str[PEZ_SOCK_MAX_NUM][PEZ_SOCK_ID_MAX_LEN];
+    pez_thd_t           thd[PEZ_SOCK_MAX_NUM];
 } pez_t;
 
 static pez_t pez;
@@ -37,8 +44,8 @@ pez_ipc_id_alloc(const char *str, int32_t *id) {
     int32_t     i = 0;
     pthread_mutex_lock(&pez.lock);
     for ( ; i < PEZ_SOCK_MAX_NUM; i ++) {
-        if (strnlen(pez.id2str[i], PEZ_SOCK_ID_MAX_LEN) == 0) {
-            strncpy(pez.id2str[i], str, PEZ_SOCK_ID_MAX_LEN);
+        if (strnlen(pez.thd[i].identity, PEZ_SOCK_ID_MAX_LEN) == 0) {
+            strncpy(pez.thd[i].identity, str, PEZ_SOCK_ID_MAX_LEN);
             *id = i;
             //printf("pez ipc: alloc id %d for %s\n", i, str);
             break;
@@ -58,7 +65,7 @@ pez_ipc_id_get(const char *str, int32_t *id) {
     int32_t i = 0;
 
     for ( ; i < PEZ_SOCK_MAX_NUM; i ++) {
-        if (!strncmp(pez.id2str[i], str, PEZ_SOCK_ID_MAX_LEN)) {
+        if (!strncmp(pez.thd[i].identity, str, PEZ_SOCK_ID_MAX_LEN)) {
             //printf("pez ipc: id %d <=> str %s\n", i, str);
             *id = i;
             break;
@@ -110,13 +117,13 @@ pez_ipc_msg_send (const char *trgt, const char *src, void *buf, size_t size) {
         return EINVAL;
     }
 
-    if (pez.pez_ev_zsock[src_id].pid != pthread_self()) {
+    if (pez.thd[src_id].pid != pthread_self()) {
         printf("pez ipc:src is incorrect\n");
         return EINVAL;
     }
 
     /* 1st: send target id frame */
-    rtn = zmq_send(pez.pez_ev_zsock[src_id].zsock,
+    rtn = zmq_send(pez.thd[src_id].pez_ev_zsock.zsock,
                    trgt,
                    strnlen(trgt,PEZ_SOCK_ID_MAX_LEN),
                    ZMQ_SNDMORE);
@@ -126,7 +133,7 @@ pez_ipc_msg_send (const char *trgt, const char *src, void *buf, size_t size) {
     }
 
     /* 2nd: send data frame */
-    rtn = zmq_send(pez.pez_ev_zsock[src_id].zsock,
+    rtn = zmq_send(pez.thd[src_id].pez_ev_zsock.zsock,
                    buf,
                    size,
                    0);
@@ -183,7 +190,7 @@ pez_ipc_thread_init_tx(const char *tx_id) {
     pez_ipc_id_get(tx_id, &id);
     if (id != PEZ_SOCK_ID_INVAL) {
         printf("pez ipc: don't invoke this API twice for same id. Previous"
-               " call is by %s\n", pez.id2str[id]);
+               " call is by %s\n", pez.thd[id].identity);
         return EINVAL;
     }
 
@@ -193,7 +200,7 @@ pez_ipc_thread_init_tx(const char *tx_id) {
         return ENOMEM;
     }
 
-    pez.pez_ev_zsock[id].pid = pthread_self();
+    pez.thd[id].pid = pthread_self();
 
     zmq_ctx = pez_ipc_get_zmq_ctx();
     if (!zmq_ctx) {
@@ -201,7 +208,6 @@ pez_ipc_thread_init_tx(const char *tx_id) {
         return EINVAL;
     }
 
-    /* created socket will be stored to pez_ev_zsock[id] */
     socket = zmq_socket(zmq_ctx, ZMQ_DEALER);
     if (socket == NULL) {
         printf("unable to create ZMQ_DEALER socket: %s\n", strerror(errno));
@@ -230,7 +236,7 @@ pez_ipc_thread_init_tx(const char *tx_id) {
     }
 
     /* save socket to pez */
-    pez.pez_ev_zsock[id].zsock = socket;
+    pez.thd[id].pez_ev_zsock.zsock = socket;
 
     return EOK;
 }
@@ -258,7 +264,7 @@ pez_ipc_thread_init_rx(struct ev_loop *loop,
     pez_ipc_id_get(rx_id, &id);
     if (id != PEZ_SOCK_ID_INVAL) {
         printf("pez ipc: don't invoke this API twice for same id. Previous"
-               " call is by %s\n", pez.id2str[id]);
+               " call is by %s\n", pez.thd[id].identity);
         return EINVAL;
     }
 
@@ -268,9 +274,8 @@ pez_ipc_thread_init_rx(struct ev_loop *loop,
         return ENOMEM;
     }
 
-    pez.pez_ev_zsock[id].pid = pthread_self();
+    pez.thd[id].pid = pthread_self();
 
-    /* created socket will be stored to pez_ev_zsock[id] */
     socket = zmq_socket(zmq_ctx, ZMQ_DEALER);
     if (!socket) {
         printf("unable to create ZMQ_DEALER socket for %s(%s)\n",
@@ -301,17 +306,43 @@ pez_ipc_thread_init_rx(struct ev_loop *loop,
     }
 
     /* Only need EV_READ event to read incoming msg */
-    ev_zsock_init(&pez.pez_ev_zsock[id], cb, socket, EV_READ);
-    ev_zsock_start(loop, &pez.pez_ev_zsock[id]);
+    ev_zsock_init(&pez.thd[id].pez_ev_zsock, cb, socket, EV_READ);
+    ev_zsock_start(loop, &pez.thd[id].pez_ev_zsock);
 
     return EOK;
 }
 
-static pez_status
-pez_ipc_router_thread_recv_msg() {
-    return EOK;
+/*
+ *
+ */
+void
+pez_ipc_router_counter_print() {
+    int32_t     i;
+    for (i = 0; i < PEZ_SOCK_MAX_NUM; i ++) {
+        if (strnlen(pez.thd[i].identity, PEZ_SOCK_ID_MAX_LEN) != 0) {
+            printf("%s: recv:%llu, send:%llu\n",
+                    pez.thd[i].identity,
+                    pez.thd[i].recv_cnt,
+                    pez.thd[i].send_cnt);
+        }
+    }
 }
 
+/*
+ *
+ */
+static void
+pez_ipc_router_count(char *trgt, char *src) {
+    int32_t     id = 0;;
+    pez_ipc_id_get(trgt, &id);
+    if (id != PEZ_SOCK_ID_INVAL) {
+        pez.thd[id].recv_cnt ++;
+    }
+    pez_ipc_id_get(src, &id);
+    if (id != PEZ_SOCK_ID_INVAL) {
+        pez.thd[id].send_cnt ++;
+    }
+}
 
 /*
  * router thread
@@ -385,6 +416,8 @@ static void * pez_ipc_router_thread(void *arg) {
                         strerror(errno));
                 continue;
             }
+            /* Count */
+            pez_ipc_router_count(trgt_id, src_id);
         }
     }
 }
@@ -401,7 +434,6 @@ pez_ipc_create_router_thread() {
         printf("pez ipc: create router thread failed: %s\n", strerror(errno));
         return rc;
     }
-
     return EOK;
 }
 

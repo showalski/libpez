@@ -20,4 +20,5 @@ pez_status pez_ipc_msg_recv(void *socket, void *buf, size_t buffer_size, size_t 
 
 pez_status pez_ipc_msg_send (const char *trgt, const char *src, void *buf, size_t size);
 
+void pez_ipc_router_counter_print();
 #endif /* PEZ_IPC_H */
