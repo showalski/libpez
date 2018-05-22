@@ -246,8 +246,6 @@ void * pez_bar_thread (void *arg) {
     return NULL;
 }
 
-
-
 /*
  * main thread
  */
@@ -260,6 +258,9 @@ int main() {
     loop = ev_default_loop (0);
 
     pez_ipc_init();
+
+    /* Enable debug */
+    //pez_ipc_enable_debug();
 
     rtn = pez_ipc_thread_init_rx(loop, "main", main_thread_ipc_handler);
     if (rtn != EOK) {
