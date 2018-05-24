@@ -1,6 +1,6 @@
 # pez(TBD)
 ## Overview
-PEZ is shared library and abstract layer above zmq which facilitates communications between C threads. It depends on libev and libzmq. Below is an overview figure:
+PEZ is shared library and abstract layer above zmq which facilitates communications between C threads. It depends on libev and libzmq. **Message receiving is treated as libev events.** Below is an overview figure:
 
 <img src="https://github.com/showalski/pez/blob/master/pics/pez%20overview.png" width="660">
 
@@ -28,7 +28,7 @@ rt counter:foo: recv:1, send:0
 ```
 Strings after `|` during dumping zmq mesages are suffixes for differentiating which thread is printing, which could help debugging during multi-thread env.
 
-## Explaination
+## Explanation
 Embedding zmq to libev is a bit of tricky because everthing is event in libev and we don't want waste time waiting/polling zmq messages, othewise no events would be received. We know that there are 2 different interrupts in circuit: level or edge triggered. The difficulties are that `zmq sockets are edge-triggered` but `libev is level-triggered`. Fortunately libev provides some APIs to achieve our goals. There are some good articles/links with detailed explaination:
 
 1. [Differences between the trigger fasions of libev and zmq](https://funcptr.net/2012/09/10/zeromq---edge-triggered-notification/)
