@@ -1,4 +1,5 @@
-# pez(TBD)
+# libpez(TBD)
+[![Build Status](https://img.shields.io/badge/README-中文-yellow.svg)](README_CN.md)
 ## Overview
 PEZ is shared library and abstract layer above zmq which facilitates communications between C threads. It depends on libev and libzmq. **Message receiving is treated as libev events.** Below is an overview figure:
 
