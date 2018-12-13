@@ -2,7 +2,7 @@
 [![Build Status](https://img.shields.io/badge/README-English-yellow.svg)](README.md)
 
 ## 概述
-libpez 是基于C语言的构建在ZMQ上的一个动态链接库（当然也可以很容易的做为一个模块集成到其它系统中），用它可以方便的进行线程间通信。它依赖于libev和libzmq两个动态链接库。如果你的程序构建在基于事件驱动的架构（libev，libevent）上可以使用libpez，libev相较于其它的事件驱动框架而言更加轻量级，较适用于嵌入式环境中。下面是一个简要的架构图：
+libpez 是基于C语言的构建在ZMQ上的一个动态链接库（当然也可以很容易的做为一个模块集成到其它系统中），用它可以方便的进行线程间通信。它依赖于libev和libzmq两个动态链接库，消息的序列化使用google protobuf。如果你的程序构建在基于事件驱动的架构（libev，libevent）上可以使用libpez，libev相较于其它的事件驱动框架而言更加轻量级，较适用于嵌入式环境中。下面是一个简要的架构图：
 
 <img src="https://github.com/showalski/pez/blob/master/pics/pez%20overview.png" width="660">
 
